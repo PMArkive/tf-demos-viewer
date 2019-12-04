@@ -1,15 +1,15 @@
 use wasm_bindgen::prelude::*;
 use web_sys::console;
+use tf_demo_parser::{DemoParser, Demo};
 
-
-// When the `wee_alloc` feature is enabled, this uses `wee_alloc` as the global
-// allocator.
-//
-// If you don't want to use `wee_alloc`, you can safely delete this.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
+#[wasm_bindgen]
+pub fn parse_demo(buffer: &[u8]) {
+    let buffer = buffer.to_vec();
+    console::log_1(&JsValue::from_str(&format!("len: {}", buffer.len())));
+    let demo = Demo::new(buffer);
+    let (header, _) = DemoParser::parse_all(demo.get_stream()).unwrap();
+    console::log_1(&JsValue::from_str(&format!("{:?}", header)));
+}
 
 // This is like the `main` function, except for JavaScript.
 #[wasm_bindgen(start)]

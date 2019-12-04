@@ -1,6 +1,6 @@
 {
-  "author": "You <you@example.com>",
-  "name": "rust-webpack-template",
+  "author": "Robin Appelman <robin@icewind.nl>",
+  "name": "tf-demos-viewer",
   "version": "0.1.0",
   "scripts": {
     "build": "rimraf dist pkg && webpack",
