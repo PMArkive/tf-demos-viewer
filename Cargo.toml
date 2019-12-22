@@ -11,7 +11,7 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [profile.dev]
-opt-level = 1
+opt-level = 3 # demo parsing is slow
 
 [profile.release]
 lto = true
