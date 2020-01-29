@@ -1,10 +1,7 @@
 use std::ops::Index;
 use tf_demo_parser::demo::parser::gamestateanalyser::{Class, GameState, Team};
 use tf_demo_parser::demo::vector::VectorXY;
-
-macro_rules! log {
-    ($($arg:tt)*) => (web_sys::console::log_1(&wasm_bindgen::prelude::JsValue::from(format!($($arg)*))))
-}
+use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Angle(u16);
@@ -52,6 +49,12 @@ impl ParsedDemo {
             );
         }
         self.tick += 1;
+    }
+
+    pub fn size(&self) -> usize {
+        self.players
+            .iter()
+            .fold(0, |size, player| size + player.size())
     }
 }
 
@@ -113,11 +116,25 @@ impl ParsedPlayer {
             class: self.class[index],
         }
     }
+
+    pub fn size(&self) -> usize {
+        self.position.len() * std::mem::size_of::<VectorXY>()
+            + self.team.size()
+            + self.class.size()
+            + self.health.size()
+            + self.angle.size()
+    }
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct SparseVec<T: Default, const N: usize> {
     inner: Vec<T>,
+}
+
+impl<T: Default, const N: usize> SparseVec<T, N> {
+    pub fn size(&self) -> usize {
+        self.inner.len() * std::mem::size_of::<T>()
+    }
 }
 
 impl<T: Default, const N: usize> SparseVec<T, N> {
