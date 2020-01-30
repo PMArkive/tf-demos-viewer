@@ -1,6 +1,5 @@
 use tf_demo_parser::demo::parser::gamestateanalyser::{Class, GameState, Team, World};
 use tf_demo_parser::demo::vector::VectorXY;
-use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Angle(u8);
@@ -19,11 +18,10 @@ impl From<Angle> for f32 {
     }
 }
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Default)]
 pub struct ParsedDemo {
-    tick: usize,
-    players: Vec<Vec<u8>>,
+    pub tick: usize,
+    pub players: Vec<Vec<u8>>,
 }
 
 impl ParsedDemo {
@@ -60,6 +58,13 @@ impl ParsedDemo {
         self.players
             .iter()
             .fold(0, |size, player| size + player.len())
+    }
+
+    pub fn flat(self) -> Vec<u8> {
+        self.players
+            .into_iter()
+            .flat_map(|player| player.into_iter())
+            .collect()
     }
 }
 
