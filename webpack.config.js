@@ -7,7 +7,7 @@ const dist = path.resolve(__dirname, "dist");
 module.exports = {
     mode: "production",
     entry: {
-        index: "./js/index.ts"
+        test: "./js/test.ts"
     },
     output: {
         path: dist,
