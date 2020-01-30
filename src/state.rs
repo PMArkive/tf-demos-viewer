@@ -1,6 +1,6 @@
-use std::ops::Index;
 use tf_demo_parser::demo::parser::gamestateanalyser::{Class, GameState, Team, World};
-use tf_demo_parser::demo::vector::{Vector, VectorXY};
+use tf_demo_parser::demo::vector::VectorXY;
+use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Angle(u8);
@@ -19,10 +19,11 @@ impl From<Angle> for f32 {
     }
 }
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Default)]
 pub struct ParsedDemo {
     tick: usize,
-    pub players: Vec<ParsedPlayer>,
+    players: Vec<Vec<u8>>,
 }
 
 impl ParsedDemo {
@@ -31,31 +32,34 @@ impl ParsedDemo {
     }
 
     pub fn push_state(&mut self, game_state: &GameState) {
-        for (index, player) in game_state.players.iter().enumerate() {
-            if let None = self.players.get(index) {
-                let mut new_player = ParsedPlayer::default();
-                // backfill with defaults
-                new_player.resize(self.tick);
-                self.players.push(new_player)
-            };
+        if let Some(world) = game_state.world.as_ref() {
+            for (index, player) in game_state.players.iter().enumerate() {
+                let state = PlayerState {
+                    position: player.position.into(),
+                    angle: Angle::from(player.view_angle),
+                    health: player.health,
+                    team: player.team,
+                    class: player.class,
+                };
 
-            let parsed_player = &mut self.players[index];
-            parsed_player.push(
-                self.tick,
-                player.position.into(),
-                player.view_angle.into(),
-                player.health,
-                player.team,
-                player.class,
-            );
+                if let None = self.players.get(index) {
+                    let mut new_player = Vec::default();
+                    // backfill with defaults
+                    new_player.resize(self.tick * PlayerState::PACKET_SIZE, 0);
+                    self.players.push(new_player);
+                };
+
+                let parsed_player = &mut self.players[index];
+                parsed_player.extend_from_slice(&state.pack(world));
+            }
+            self.tick += 1;
         }
-        self.tick += 1;
     }
 
     pub fn size(&self) -> usize {
         self.players
             .iter()
-            .fold(0, |size, player| size + player.size())
+            .fold(0, |size, player| size + player.len())
     }
 }
 
@@ -69,6 +73,8 @@ pub struct PlayerState {
 }
 
 impl PlayerState {
+    const PACKET_SIZE: usize = 8;
+
     pub fn pack(&self, world: &World) -> [u8; 8] {
         // for the purpose of viewing the demo in the browser we dont really need high accuracy for
         // position or angle, so we save a bunch of space by truncating those down to half the number
@@ -162,94 +168,4 @@ fn test_packing() {
 
     assert!(f32::abs(input.position.x - unpacked.position.x) < 0.5);
     assert!(f32::abs(input.position.y - unpacked.position.y) < 0.5);
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct ParsedPlayer {
-    position: Vec<VectorXY>,
-    angle: SparseVec<Angle, 1>,
-    health: SparseVec<u16, 4>,
-    team: SparseVec<Team, 128>,
-    class: SparseVec<Class, 128>,
-}
-
-impl ParsedPlayer {
-    fn push(
-        &mut self,
-        index: usize,
-        position: VectorXY,
-        angle: Angle,
-        health: u16,
-        team: Team,
-        class: Class,
-    ) {
-        debug_assert!(self.position.len() == index);
-        self.position.push(position);
-
-        self.angle.push_index(index, angle);
-        self.health.push_index(index, health);
-        self.team.push_index(index, team);
-        self.class.push_index(index, class);
-    }
-
-    fn resize(&mut self, size: usize) {
-        self.position.resize_with(size, || VectorXY::default());
-        self.angle.resize(size);
-        self.health.resize(size);
-        self.team.resize(size);
-        self.class.resize(size);
-    }
-
-    pub fn len(&self) -> usize {
-        self.position.len()
-    }
-
-    pub fn get(&self, index: usize) -> PlayerState {
-        PlayerState {
-            position: self.position[index],
-            angle: self.angle[index],
-            health: self.health[index],
-            team: self.team[index],
-            class: self.class[index],
-        }
-    }
-
-    pub fn size(&self) -> usize {
-        self.position.len() * std::mem::size_of::<VectorXY>()
-            + self.team.size()
-            + self.class.size()
-            + self.health.size()
-            + self.angle.size()
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct SparseVec<T: Default, const N: usize> {
-    inner: Vec<T>,
-}
-
-impl<T: Default, const N: usize> SparseVec<T, N> {
-    pub fn size(&self) -> usize {
-        self.inner.len() * std::mem::size_of::<T>()
-    }
-}
-
-impl<T: Default, const N: usize> SparseVec<T, N> {
-    fn push_index(&mut self, index: usize, val: T) {
-        if index % N == 0 {
-            self.inner.push(val)
-        }
-    }
-
-    fn resize(&mut self, size: usize) {
-        self.inner.resize_with(size / N, Default::default)
-    }
-}
-
-impl<T: Default, const N: usize> Index<usize> for SparseVec<T, N> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        self.inner.index(index / N)
-    }
 }

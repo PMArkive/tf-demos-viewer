@@ -14,13 +14,11 @@ macro_rules! log {
 }
 
 #[wasm_bindgen]
-pub fn parse_demo(buffer: Box<[u8]>) -> Result<(), JsValue> {
+pub fn parse_demo(buffer: Box<[u8]>) -> Result<ParsedDemo, JsValue> {
     let buffer = buffer.into_vec();
     let parsed = parse_demo_inner(buffer).map_err(|e| JsValue::from(e.to_string()))?;
 
-    log!("{:?}, size {}", parsed.players[2].get(10), parsed.size());
-
-    Ok(())
+    Ok(parsed)
 }
 
 pub fn parse_demo_inner(buffer: Vec<u8>) -> Result<ParsedDemo, ParseError> {
