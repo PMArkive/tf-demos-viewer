@@ -4,8 +4,8 @@ export async function parseDemo(bytes: Uint8Array): Promise<ParsedDemo> {
     let m = await import("../pkg/index.js");
     const state = m.parse_demo(bytes);
 
-    let playerCount = m.get_player_count(state);
-    let boundaries = m.get_boundaries(state);
+    let playerCount = state.player_count;
+    let boundaries = state.boundaries;
     let data = m.get_data(state);
 
     return new ParsedDemo(playerCount, {
@@ -73,10 +73,10 @@ function unpack_angle(val: number): number {
 }
 
 export class ParsedDemo {
-    private playerCount: number;
-    private world: WorldBoundaries;
-    private data: Uint8Array;
-    private tickCount: number;
+    private readonly playerCount: number;
+    private readonly world: WorldBoundaries;
+    private readonly data: Uint8Array;
+    private readonly tickCount: number;
 
     constructor(playerCount: number, world: WorldBoundaries, data: Uint8Array) {
         this.playerCount = playerCount;

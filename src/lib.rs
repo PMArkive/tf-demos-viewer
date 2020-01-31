@@ -45,9 +45,9 @@ impl From<World> for WorldBoundaries {
 
 #[wasm_bindgen]
 pub struct FlatState {
-    player_count: usize,
+    pub player_count: usize,
+    pub boundaries: WorldBoundaries,
     data: Box<[u8]>,
-    boundaries: WorldBoundaries,
 }
 
 impl FlatState {
@@ -68,16 +68,6 @@ pub fn parse_demo(buffer: Box<[u8]>) -> Result<FlatState, JsValue> {
     let world = world.ok_or_else(|| JsValue::from_str("No world defined in demo"))?;
 
     Ok(FlatState::new(parsed, world))
-}
-
-#[wasm_bindgen]
-pub fn get_boundaries(state: &FlatState) -> WorldBoundaries {
-    state.boundaries.clone()
-}
-
-#[wasm_bindgen]
-pub fn get_player_count(state: &FlatState) -> usize {
-    state.player_count
 }
 
 #[wasm_bindgen]
