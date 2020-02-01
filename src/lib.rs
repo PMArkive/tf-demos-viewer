@@ -11,10 +11,6 @@ use wasm_bindgen::prelude::*;
 
 mod state;
 
-macro_rules! log {
-    ($($arg:tt)*) => (web_sys::console::log_1(&JsValue::from(format!($($arg)*))))
-}
-
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct XY {
@@ -123,9 +119,6 @@ pub fn main_js() -> Result<(), JsValue> {
     // It's disabled in release mode so it doesn't bloat up the file size.
     #[cfg(debug_assertions)]
     console_error_panic_hook::set_once();
-
-    // Your code goes here!
-    log!("Hello world!");
 
     Ok(())
 }
