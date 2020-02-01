@@ -1,3 +1,4 @@
+use tf_demo_parser::demo::header::Header;
 use tf_demo_parser::demo::parser::gamestateanalyser::{Class, GameState, Team, World};
 use tf_demo_parser::demo::vector::VectorXY;
 
@@ -18,15 +19,20 @@ impl From<Angle> for f32 {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 pub struct ParsedDemo {
     pub tick: usize,
     pub players: Vec<Vec<u8>>,
+    pub header: Header,
 }
 
 impl ParsedDemo {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(header: Header) -> Self {
+        ParsedDemo {
+            tick: 0,
+            players: Vec::new(),
+            header,
+        }
     }
 
     pub fn push_state(&mut self, game_state: &GameState) {
@@ -58,13 +64,6 @@ impl ParsedDemo {
         self.players
             .iter()
             .fold(0, |size, player| size + player.len())
-    }
-
-    pub fn flat(self) -> Vec<u8> {
-        self.players
-            .into_iter()
-            .flat_map(|player| player.into_iter())
-            .collect()
     }
 }
 

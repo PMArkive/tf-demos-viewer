@@ -3,6 +3,7 @@
 #![macro_use]
 
 use crate::state::ParsedDemo;
+use tf_demo_parser::demo::header::Header;
 use tf_demo_parser::demo::parser::gamestateanalyser::{GameStateAnalyser, World};
 use tf_demo_parser::demo::vector::Vector;
 use tf_demo_parser::{Demo, DemoParser, ParseError};
@@ -47,15 +48,30 @@ impl From<World> for WorldBoundaries {
 pub struct FlatState {
     pub player_count: usize,
     pub boundaries: WorldBoundaries,
+    pub interval_per_tick: f32,
     data: Box<[u8]>,
+    header: Header,
 }
 
 impl FlatState {
     pub fn new(parsed: ParsedDemo, world: World) -> Self {
+        let ParsedDemo {
+            players, header, ..
+        } = parsed;
+
+        let player_count = players.len();
+
+        let flat: Vec<_> = players
+            .into_iter()
+            .flat_map(|player| player.into_iter())
+            .collect();
+
         FlatState {
-            player_count: parsed.players.len(),
+            player_count,
             boundaries: world.into(),
-            data: parsed.flat().into_boxed_slice(),
+            interval_per_tick: header.duration / (header.ticks as f32),
+            data: flat.into_boxed_slice(),
+            header,
         }
     }
 }
@@ -75,12 +91,17 @@ pub fn get_data(state: FlatState) -> Box<[u8]> {
     state.data
 }
 
+#[wasm_bindgen]
+pub fn get_map(state: &FlatState) -> String {
+    state.header.map.clone()
+}
+
 pub fn parse_demo_inner(buffer: Vec<u8>) -> Result<(ParsedDemo, Option<World>), ParseError> {
     let demo = Demo::new(buffer);
     let parser = DemoParser::new_with_analyser(demo.get_stream(), GameStateAnalyser::default());
-    let (_header, mut ticker) = parser.ticker()?;
+    let (header, mut ticker) = parser.ticker()?;
 
-    let mut parsed_demo = ParsedDemo::new();
+    let mut parsed_demo = ParsedDemo::new(header);
 
     let mut skip = false;
     while ticker.tick()? {

@@ -6,18 +6,28 @@ export async function parseDemo(bytes: Uint8Array): Promise<ParsedDemo> {
 
     let playerCount = state.player_count;
     let boundaries = state.boundaries;
+    let interval_per_tick = state.interval_per_tick;
+    let map = m.get_map(state);
     let data = m.get_data(state);
 
-    return new ParsedDemo(playerCount, {
-        boundary_min: {
-            x: boundaries.boundary_min.x,
-            y: boundaries.boundary_min.y,
+    return new ParsedDemo(
+        playerCount,
+        {
+            boundary_min: {
+                x: boundaries.boundary_min.x,
+                y: boundaries.boundary_min.y,
+            },
+            boundary_max: {
+                x: boundaries.boundary_max.x,
+                y: boundaries.boundary_max.y,
+            }
         },
-        boundary_max: {
-            x: boundaries.boundary_max.x,
-            y: boundaries.boundary_max.y,
-        }
-    }, data);
+        {
+            map,
+            interval_per_tick
+        },
+        data
+    );
 }
 
 export enum Team {
@@ -62,6 +72,11 @@ export interface PlayerState {
     playerClass: Class,
 }
 
+export interface Header {
+    interval_per_tick: number,
+    map: string
+}
+
 function unpack_f32(val: number, min: number, max: number): number {
     const ratio = val / (Math.pow(2, 16) - 1);
     return ratio * (max - min) + min;
@@ -73,14 +88,16 @@ function unpack_angle(val: number): number {
 }
 
 export class ParsedDemo {
-    private readonly playerCount: number;
-    private readonly world: WorldBoundaries;
-    private readonly data: Uint8Array;
-    private readonly tickCount: number;
+    public readonly playerCount: number;
+    public readonly world: WorldBoundaries;
+    public readonly data: Uint8Array;
+    private readonly header: Header;
+    public readonly tickCount: number;
 
-    constructor(playerCount: number, world: WorldBoundaries, data: Uint8Array) {
+    constructor(playerCount: number, world: WorldBoundaries, header: Header, data: Uint8Array) {
         this.playerCount = playerCount;
         this.world = world;
+        this.header = header;
         this.data = data;
         this.tickCount = data.length / playerCount / PACK_SIZE;
     }
