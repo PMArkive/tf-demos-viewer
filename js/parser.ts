@@ -1,4 +1,4 @@
-import {FlatState, XY} from '../pkg/tf_demos_viewer.d.ts';
+import {FlatState, XY} from '../pkg/tf_demos_viewer';
 
 export async function parseDemo(bytes: Uint8Array): Promise<ParsedDemo> {
     let m = await import("../pkg/tf_demos_viewer.js");

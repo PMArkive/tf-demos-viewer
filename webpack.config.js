@@ -5,15 +5,14 @@ const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 const dist = path.resolve(__dirname, "dist");
 
 module.exports = {
+    target: 'webworker',
     mode: "production",
     entry: {
-        test: "./js/test.ts",
         index: "./js/index.ts"
     },
     output: {
         path: dist,
         filename: "[name].js",
-        globalObject: "this",
         libraryTarget: 'commonjs'
     },
     devServer: {
