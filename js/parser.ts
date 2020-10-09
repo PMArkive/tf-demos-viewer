@@ -1,7 +1,7 @@
-import {FlatState, XY} from '../pkg/tf_demos_viewer';
+import {FlatState, XY} from '../pkg/index';
 
 export async function parseDemo(bytes: Uint8Array): Promise<ParsedDemo> {
-    let m = await import("../pkg/tf_demos_viewer.js");
+    let m = await import("../pkg/index.js");
     const state = m.parse_demo(bytes);
 
     let playerCount = state.player_count;
@@ -112,15 +112,16 @@ export class ParsedDemo {
     }
 }
 
-const PACK_SIZE = 8;
+const PACK_SIZE = 7;
 
 function unpackPlayer(bytes: Uint8Array, base: number, world: WorldBoundaries): PlayerState {
     const x = unpack_f32(bytes[base] + (bytes[base + 1] << 8), world.boundary_min.x, world.boundary_max.x);
     const y = unpack_f32(bytes[base + 2] + (bytes[base + 3] << 8), world.boundary_min.y, world.boundary_max.y);
-    let health = bytes[base + 4] + (bytes[base + 5] << 8);
+    const team_class_health = bytes[base + 4] + (bytes[base + 5] << 8);
     const angle = unpack_angle(bytes[base + 6]);
-    const team = (bytes[base + 7] >> 4) as Team;
-    const playerClass = (bytes[base + 7] & 15) as Class;
+    const health = team_class_health & 1013;
+    const team = (team_class_health >> 14) as Team;
+    const playerClass = ((team_class_health >> 10) & 15) as Class;
 
     return {
         position: {x, y},

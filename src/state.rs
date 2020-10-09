@@ -79,7 +79,7 @@ pub struct PlayerState {
 impl PlayerState {
     const PACKET_SIZE: usize = 8;
 
-    pub fn pack(&self, world: &World) -> [u8; 8] {
+    pub fn pack(&self, world: &World) -> [u8; 7] {
         // for the purpose of viewing the demo in the browser we dont really need high accuracy for
         // position or angle, so we save a bunch of space by truncating those down to half the number
         // of bits
@@ -90,21 +90,25 @@ impl PlayerState {
 
         let x = pack_f32(self.position.x, world.boundary_min.x, world.boundary_max.x).to_le_bytes();
         let y = pack_f32(self.position.y, world.boundary_min.y, world.boundary_max.y).to_le_bytes();
-        let team_and_class = ((self.team as u8) << 4) + self.class as u8;
-        let health_bytes = self.health.to_le_bytes();
+        // 2 bits for team
+        // 4 bits for class
+        // 10 bits for health
+        let team_class_health =
+            ((self.team as u16) << 14) + ((self.class as u16) << 10) + self.health;
+        let combined_bytes = team_class_health.to_le_bytes();
 
         [
             x[0],
             x[1],
             y[0],
             y[1],
-            health_bytes[0],
-            health_bytes[1],
+            combined_bytes[0],
+            combined_bytes[1],
             self.angle.0,
-            team_and_class,
         ]
     }
 
+    #[allow(dead_code)]
     pub fn unpack(bytes: [u8; 8], world: &World) -> Self {
         fn unpack_f32(val: u16, min: f32, max: f32) -> f32 {
             let ratio = val as f32 / (u16::max_value() as f32);
