@@ -109,7 +109,7 @@ impl PlayerState {
     }
 
     #[allow(dead_code)]
-    pub fn unpack(bytes: [u8; 8], world: &World) -> Self {
+    pub fn unpack(bytes: [u8; 7], world: &World) -> Self {
         fn unpack_f32(val: u16, min: f32, max: f32) -> f32 {
             let ratio = val as f32 / (u16::max_value() as f32);
             ratio * (max - min) + min
@@ -125,10 +125,11 @@ impl PlayerState {
             world.boundary_min.y,
             world.boundary_max.y,
         );
-        let health = u16::from_le_bytes([bytes[4], bytes[5]]);
+        let team_class_health = u16::from_le_bytes([bytes[4], bytes[5]]);
+        let health = team_class_health & 1023;
         let angle = Angle(bytes[6]);
-        let team = Team::new(bytes[7] >> 4);
-        let class = Class::new(bytes[7] & 15);
+        let team = Team::new(team_class_health >> 14);
+        let class = Class::new((team_class_health >> 10) & 15);
 
         PlayerState {
             position: VectorXY { x, y },
@@ -142,6 +143,8 @@ impl PlayerState {
 
 #[test]
 fn test_packing() {
+    use tf_demo_parser::demo::vector::Vector;
+
     let world = World {
         boundary_max: Vector {
             x: 10000.0,
