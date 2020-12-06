@@ -26,10 +26,7 @@ wasm-opt = false
 wasm-bindgen = "0.2.45"
 wee_alloc = { version = "0.4.2", optional = true }
 web-sys = { version = "0.3.22", features = ["console"] }
-tf-demo-parser = { path = "../tf-demo-parser" }
-
-[target."cfg(debug_assertions)".dependencies]
-console_error_panic_hook = "0.1.5"
+tf-demo-parser = "0.2"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.2.45"

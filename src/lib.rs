@@ -74,8 +74,7 @@ impl FlatState {
 
 #[wasm_bindgen]
 pub fn parse_demo(buffer: Box<[u8]>) -> Result<FlatState, JsValue> {
-    let buffer = buffer.into_vec();
-    let (parsed, world) = parse_demo_inner(buffer).map_err(|e| JsValue::from(e.to_string()))?;
+    let (parsed, world) = parse_demo_inner(&buffer).map_err(|e| JsValue::from(e.to_string()))?;
 
     let world = world.ok_or_else(|| JsValue::from_str("No world defined in demo"))?;
 
@@ -92,7 +91,7 @@ pub fn get_map(state: &FlatState) -> String {
     state.header.map.clone()
 }
 
-pub fn parse_demo_inner(buffer: Vec<u8>) -> Result<(ParsedDemo, Option<World>), ParseError> {
+pub fn parse_demo_inner(buffer: &[u8]) -> Result<(ParsedDemo, Option<World>), ParseError> {
     let demo = Demo::new(buffer);
     let parser = DemoParser::new_with_analyser(demo.get_stream(), GameStateAnalyser::default());
     let (header, mut ticker) = parser.ticker()?;
@@ -115,10 +114,5 @@ pub fn parse_demo_inner(buffer: Vec<u8>) -> Result<(ParsedDemo, Option<World>), 
 // This is like the `main` function, except for JavaScript.
 #[wasm_bindgen(start)]
 pub fn main_js() -> Result<(), JsValue> {
-    // This provides better error messages in debug mode.
-    // It's disabled in release mode so it doesn't bloat up the file size.
-    #[cfg(debug_assertions)]
-    console_error_panic_hook::set_once();
-
     Ok(())
 }
