@@ -163,6 +163,7 @@ pub fn get_player_steam_id(state: &FlatState, player_id: usize) -> String {
 
 pub fn parse_demo_inner(buffer: &[u8]) -> Result<(ParsedDemo, Option<World>), ParseError> {
     let demo = Demo::new(buffer);
+
     let parser = DemoParser::new_with_analyser(demo.get_stream(), GameStateAnalyser::default());
     let (header, mut ticker) = parser.ticker()?;
 
@@ -177,9 +178,10 @@ pub fn parse_demo_inner(buffer: &[u8]) -> Result<(ParsedDemo, Option<World>), Pa
         skip = !skip;
     }
 
-    let world: Option<&World> = ticker.state().world.as_ref();
-    parsed_demo.kills = ticker.state().kills.clone();
-    Ok((parsed_demo, world.map(|w| w.clone())))
+    let state = ticker.into_state();
+
+    parsed_demo.kills = state.kills;
+    Ok((parsed_demo, state.world))
 }
 
 // This is like the `main` function, except for JavaScript.
