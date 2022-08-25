@@ -1,6 +1,7 @@
 #![macro_use]
 
 use crate::state::ParsedDemo;
+use js_sys::Function;
 use tf_demo_parser::demo::header::Header;
 use tf_demo_parser::demo::parser::analyser::UserInfo;
 use tf_demo_parser::demo::parser::gamestateanalyser::{GameStateAnalyser, World};
@@ -103,8 +104,9 @@ impl FlatState {
 }
 
 #[wasm_bindgen]
-pub fn parse_demo(buffer: Box<[u8]>) -> Result<FlatState, JsValue> {
-    let (parsed, world) = parse_demo_inner(&buffer).map_err(|e| JsValue::from(e.to_string()))?;
+pub fn parse_demo(buffer: Box<[u8]>, progress: &Function) -> Result<FlatState, JsValue> {
+    let (parsed, world) =
+        parse_demo_inner(&buffer, progress).map_err(|e| JsValue::from(e.to_string()))?;
 
     let world = world.ok_or_else(|| JsValue::from_str("No world defined in demo"))?;
 
@@ -166,11 +168,16 @@ pub fn get_player_steam_id(state: &FlatState, player_id: usize) -> String {
     state.player_info[player_id].steam_id.clone()
 }
 
-pub fn parse_demo_inner(buffer: &[u8]) -> Result<(ParsedDemo, Option<World>), ParseError> {
+pub fn parse_demo_inner(
+    buffer: &[u8],
+    progress: &Function,
+) -> Result<(ParsedDemo, Option<World>), ParseError> {
     let demo = Demo::new(buffer);
 
     let parser = DemoParser::new_with_analyser(demo.get_stream(), GameStateAnalyser::default());
     let (header, mut ticker) = parser.ticker()?;
+    let total_ticks = header.ticks;
+    let mut last_progress = 0.0;
 
     let mut parsed_demo = ParsedDemo::new(header);
 
@@ -181,6 +188,11 @@ pub fn parse_demo_inner(buffer: &[u8]) -> Result<(ParsedDemo, Option<World>), Pa
             parsed_demo.push_state(ticker.state());
         }
         skip = !skip;
+        let new_progress = ((ticker.state().tick as f32 / total_ticks as f32) * 100.0).floor();
+        if new_progress > last_progress {
+            last_progress = new_progress;
+            let _ = progress.call1(&JsValue::null(), &last_progress.into());
+        }
     }
 
     let state = ticker.into_state();

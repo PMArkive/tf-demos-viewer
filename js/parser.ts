@@ -1,8 +1,8 @@
 import {FlatState, XY} from '../pkg/index';
 
-export async function parseDemo(bytes: Uint8Array): Promise<ParsedDemo> {
+export async function parseDemo(bytes: Uint8Array, progressCallback : (progress: number) => void): Promise<ParsedDemo> {
     let m = await import("../pkg/index.js");
-    const state = m.parse_demo(bytes);
+    const state = m.parse_demo(bytes, progressCallback);
 
     let playerCount = state.player_count;
     let buildingCount = state.building_count;

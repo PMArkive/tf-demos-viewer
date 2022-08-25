@@ -10,7 +10,7 @@ window.addEventListener('DOMContentLoaded', () => {
             let bytes = new Uint8Array(reader.result as ArrayBuffer);
 
             console.time('demo_parse');
-            let parsed = await parseDemo(bytes);
+            let parsed = await parseDemo(bytes, () => {});
             console.timeEnd('demo_parse');
             console.log(parsed.getPlayer(150, 2));
         };
