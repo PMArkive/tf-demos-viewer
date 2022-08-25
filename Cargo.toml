@@ -26,7 +26,8 @@ wasm-opt = false
 wasm-bindgen = "0.2.45"
 wee_alloc = { version = "0.4.2", optional = true }
 web-sys = { version = "0.3.22", features = ["console"] }
-tf-demo-parser = "0.2"
+#tf-demo-parser = { version = "0.4", git = "https://github.com/demostf/parser" }
+tf-demo-parser = { version = "0.4", path = "../tf-demo-parser" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.2.45"
