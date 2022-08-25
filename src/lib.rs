@@ -157,6 +157,11 @@ pub fn get_player_entity_id(state: &FlatState, player_id: usize) -> u32 {
 }
 
 #[wasm_bindgen]
+pub fn get_player_user_id(state: &FlatState, player_id: usize) -> u8 {
+    state.player_info[player_id].user_id.into()
+}
+
+#[wasm_bindgen]
 pub fn get_player_steam_id(state: &FlatState, player_id: usize) -> String {
     state.player_info[player_id].steam_id.clone()
 }

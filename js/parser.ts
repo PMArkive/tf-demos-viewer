@@ -20,6 +20,7 @@ export async function parseDemo(bytes: Uint8Array): Promise<ParsedDemo> {
             name: m.get_player_name(state, i),
             steamId: m.get_player_steam_id(state, i),
             entityId: m.get_player_entity_id(state, i),
+            userId: m.get_player_user_id(state, i),
         })
     }
 
@@ -64,6 +65,7 @@ export interface PlayerInfo {
     entityId: number,
     name: string,
     steamId: string,
+    userId: number,
 }
 
 export enum Team {
