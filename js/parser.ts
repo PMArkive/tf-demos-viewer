@@ -8,6 +8,7 @@ export async function parseDemo(bytes: Uint8Array, progressCallback : (progress:
     let buildingCount = state.building_count;
     let boundaries = state.boundaries;
     let interval_per_tick = state.interval_per_tick;
+    let tickCount = state.tick_count;
     let kill_ticks = m.get_kill_ticks(state);
     let attackers = m.get_attacker_ids(state);
     let assisters = m.get_assister_ids(state);
@@ -57,7 +58,8 @@ export async function parseDemo(bytes: Uint8Array, progressCallback : (progress:
         },
         data,
         kills,
-        playerInfo
+        playerInfo,
+        tickCount,
     );
 }
 
@@ -130,6 +132,7 @@ export interface BuildingState {
     },
     angle: number,
     health: number,
+    level: number,
     team: Team,
     buildingType: BuildingType,
 }
@@ -167,7 +170,7 @@ export class ParsedDemo {
     public readonly kills: Kill[];
     public readonly playerInfo: PlayerInfo[];
 
-    constructor(playerCount: number, buildingCount: number, world: WorldBoundaries, header: Header, data: Uint8Array, kills: Kill[], playerInfo: PlayerInfo[]) {
+    constructor(playerCount: number, buildingCount: number, world: WorldBoundaries, header: Header, data: Uint8Array, kills: Kill[], playerInfo: PlayerInfo[], tickCount: number) {
         this.playerCount = playerCount;
         this.buildingCount = buildingCount;
         this.world = world;
@@ -175,7 +178,7 @@ export class ParsedDemo {
         this.data = data;
         this.kills = kills;
         this.playerInfo = playerInfo;
-        this.tickCount = data.length / (playerCount * PLAYER_PACK_SIZE + buildingCount * BUILDING_PACK_SIZE);
+        this.tickCount = tickCount;
     }
 
     getPlayer(tick: number, playerIndex: number): PlayerState {
@@ -189,10 +192,10 @@ export class ParsedDemo {
 
     getBuilding(tick: number, buildingIndex: number): BuildingState {
         if (buildingIndex >= this.buildingCount) {
-            throw new Error("Player out of bounds");
+            throw new Error("Building out of bounds");
         }
 
-        const base = ((buildingIndex * this.tickCount) + tick) * BUILDING_PACK_SIZE;
+        const base = (this.playerCount * this.tickCount * PLAYER_PACK_SIZE) + ((buildingIndex * this.tickCount) + tick) * BUILDING_PACK_SIZE;
         return unpackBuilding(this.data, base, this.world);
     }
 }
@@ -227,7 +230,8 @@ function unpackBuilding(bytes: Uint8Array, base: number, world: WorldBoundaries)
     const team_type_health = bytes[base + 4] + (bytes[base + 5] << 8);
     const angle = unpack_angle(bytes[base + 6]);
     const health = team_type_health & 1013;
-    const team = (team_type_health >> 13) as Team;
+    const team = (((team_type_health >> 13) & 1) === 0) ? Team.Blue : Team.Red;
+    const level = (team_type_health >> 14);
     const buildingType = ((team_type_health >> 10) & 7) as BuildingType;
 
     return {
@@ -235,6 +239,7 @@ function unpackBuilding(bytes: Uint8Array, base: number, world: WorldBoundaries)
         angle,
         health,
         team,
-        buildingType
+        buildingType,
+        level,
     }
 }

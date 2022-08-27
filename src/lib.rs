@@ -46,6 +46,7 @@ pub struct FlatState {
     pub building_count: usize,
     pub boundaries: WorldBoundaries,
     pub interval_per_tick: f32,
+    pub tick_count: u32,
     kill_ticks: Box<[u32]>,
     attackers: Box<[u8]>,
     assisters: Box<[u8]>,
@@ -62,21 +63,24 @@ impl FlatState {
             players,
             header,
             buildings,
+            max_building_count,
+            tick,
             ..
         } = parsed;
 
         let player_count = players.len();
-        let building_count = buildings.len();
+        let building_count = max_building_count;
 
         let flat: Vec<_> = players
             .into_iter()
             .chain(buildings.into_iter())
-            .flat_map(|player| player.into_iter())
+            .flat_map(|data| data.into_iter())
             .collect();
 
         FlatState {
             player_count,
             building_count,
+            tick_count: tick as u32,
             boundaries: world.into(),
             interval_per_tick: header.duration / (header.ticks as f32),
             data: flat.into_boxed_slice(),
@@ -194,6 +198,8 @@ pub fn parse_demo_inner(
             let _ = progress.call1(&JsValue::null(), &last_progress.into());
         }
     }
+
+    parsed_demo.finish();
 
     let state = ticker.into_state();
 

@@ -1,7 +1,8 @@
 use tf_demo_parser::demo::header::Header;
 use tf_demo_parser::demo::parser::analyser::UserInfo;
 use tf_demo_parser::demo::parser::gamestateanalyser::{
-    Building, Class, GameState, Kill, PlayerState as PlayerAliveState, Team, World,
+    Building, Class, Dispenser, GameState, Kill, PlayerState as PlayerAliveState, Sentry, Team,
+    Teleporter, World,
 };
 use tf_demo_parser::demo::vector::VectorXY;
 
@@ -30,6 +31,7 @@ pub struct ParsedDemo {
     pub kills: Vec<Kill>,
     pub header: Header,
     pub player_info: Vec<UserInfo>,
+    pub max_building_count: usize,
 }
 
 impl ParsedDemo {
@@ -40,6 +42,7 @@ impl ParsedDemo {
             buildings: Vec::new(),
             kills: Vec::new(),
             player_info: Vec::new(),
+            max_building_count: 0,
             header,
         }
     }
@@ -76,20 +79,29 @@ impl ParsedDemo {
                 let parsed_player = &mut self.players[index];
                 parsed_player.extend_from_slice(&state.pack(world));
             }
-            for (index, building) in game_state.buildings.iter().enumerate() {
+
+            self.max_building_count = self.max_building_count.max(game_state.buildings.len());
+            for (index, building) in game_state.buildings.values().enumerate() {
                 let state = BuildingState::new(building);
 
                 if let None = self.buildings.get(index) {
-                    let mut new_building =
+                    let new_building =
                         Vec::with_capacity(self.header.ticks as usize * BuildingState::PACKET_SIZE);
-                    new_building.resize(self.tick * BuildingState::PACKET_SIZE, 0);
                     self.buildings.push(new_building);
                 };
 
-                let parsed_player = &mut self.players[index];
-                parsed_player.extend_from_slice(&state.pack(world));
+                let parsed_building = &mut self.buildings[index];
+                parsed_building.resize(self.tick * BuildingState::PACKET_SIZE, 0);
+
+                parsed_building.extend_from_slice(&state.pack(world));
             }
             self.tick += 1;
+        }
+    }
+
+    pub fn finish(&mut self) {
+        for parsed_building in self.buildings.iter_mut() {
+            parsed_building.resize(self.tick * BuildingState::PACKET_SIZE, 0);
         }
     }
 
@@ -255,29 +267,29 @@ impl BuildingType {
 
     pub fn from_building(building: &Building) -> Self {
         match building {
-            Building::Sentry { is_mini: true, .. } => BuildingType::MiniSentry,
-            Building::Sentry {
+            Building::Sentry(Sentry { is_mini: true, .. }) => BuildingType::MiniSentry,
+            Building::Sentry(Sentry {
                 is_mini: false,
                 level: 1,
                 ..
-            } => BuildingType::Level1Sentry,
-            Building::Sentry {
+            }) => BuildingType::Level1Sentry,
+            Building::Sentry(Sentry {
                 is_mini: false,
                 level: 2,
                 ..
-            } => BuildingType::Level2Sentry,
-            Building::Sentry {
+            }) => BuildingType::Level2Sentry,
+            Building::Sentry(Sentry {
                 is_mini: false,
                 level: 3,
                 ..
-            } => BuildingType::Level3Sentry,
-            Building::Dispenser { .. } => BuildingType::Dispenser,
-            Building::Teleporter {
+            }) => BuildingType::Level3Sentry,
+            Building::Dispenser(Dispenser { .. }) => BuildingType::Dispenser,
+            Building::Teleporter(Teleporter {
                 is_entrance: true, ..
-            } => BuildingType::TeleporterEntrance,
-            Building::Teleporter {
+            }) => BuildingType::TeleporterEntrance,
+            Building::Teleporter(Teleporter {
                 is_entrance: false, ..
-            } => BuildingType::TeleporterExit,
+            }) => BuildingType::TeleporterExit,
             _ => BuildingType::Unknown,
         }
     }
@@ -290,43 +302,24 @@ pub struct BuildingState {
     health: u16,
     team: Team,
     ty: BuildingType,
+    level: u8,
 }
 
 impl BuildingState {
     const PACKET_SIZE: usize = 7;
 
     pub fn new(building: &Building) -> Self {
-        match building {
-            Building::Sentry {
-                position,
-                angle,
-                health,
-                team,
-                ..
-            }
-            | Building::Dispenser {
-                position,
-                angle,
-                health,
-                team,
-                ..
-            }
-            | Building::Teleporter {
-                position,
-                angle,
-                health,
-                team,
-                ..
-            } => BuildingState {
-                position: VectorXY {
-                    x: position.x,
-                    y: position.y,
-                },
-                angle: Angle::from(*angle),
-                health: *health,
-                team: *team,
-                ty: BuildingType::from_building(building),
+        let position = building.position();
+        BuildingState {
+            position: VectorXY {
+                x: position.x,
+                y: position.y,
             },
+            angle: Angle::from(building.angle()),
+            health: building.health(),
+            team: building.team(),
+            ty: BuildingType::from_building(building),
+            level: building.level(),
         }
     }
 
@@ -341,11 +334,15 @@ impl BuildingState {
 
         let x = pack_f32(self.position.x, world.boundary_min.x, world.boundary_max.x).to_le_bytes();
         let y = pack_f32(self.position.y, world.boundary_min.y, world.boundary_max.y).to_le_bytes();
-        // 1 bits reserved
-        // 2 bits reserved
+        // 2 bits level
+        // 1 bit team
         // 3 bits for type
         // 10 bits for health
-        let team_type_health = ((self.team as u16) << 13) + ((self.ty as u16) << 10) + self.health;
+        let team = if self.team == Team::Blue { 0 } else { 1 };
+        let team_type_health = ((self.level as u16) << 14)
+            + ((team as u16) << 13)
+            + ((self.ty as u16) << 10)
+            + self.health;
         let combined_bytes = team_type_health.to_le_bytes();
 
         [
@@ -379,8 +376,14 @@ impl BuildingState {
         let team_type_health = u16::from_le_bytes([bytes[4], bytes[5]]);
         let health = team_type_health & 1023;
         let angle = Angle(bytes[6]);
-        let team = Team::new(team_type_health >> 13);
+        let packed_team = (team_type_health >> 13) & 1;
+        let team = if packed_team == 0 {
+            Team::Blue
+        } else {
+            Team::Red
+        };
         let ty = BuildingType::new((team_type_health >> 10) as u8 & 7);
+        let level = (team_type_health >> 14) as u8;
 
         BuildingState {
             position: VectorXY { x, y },
@@ -388,6 +391,7 @@ impl BuildingState {
             health,
             team,
             ty,
+            level,
         }
     }
 }
@@ -417,6 +421,7 @@ fn test_building_packing() {
         angle: Angle::from(213.0),
         health: 250,
         team: Team::Blue,
+        level: 3,
         ty: BuildingType::Level1Sentry,
     };
 
@@ -427,6 +432,7 @@ fn test_building_packing() {
     assert_eq!(input.health, unpacked.health);
     assert_eq!(input.ty, unpacked.ty);
     assert_eq!(input.team, unpacked.team);
+    assert_eq!(input.level, unpacked.level);
 
     assert!(f32::abs(input.position.x - unpacked.position.x) < 0.5);
     assert!(f32::abs(input.position.y - unpacked.position.y) < 0.5);
