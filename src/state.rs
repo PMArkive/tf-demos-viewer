@@ -1,3 +1,4 @@
+use tf_demo_parser::demo::data::DemoTick;
 use tf_demo_parser::demo::header::Header;
 use tf_demo_parser::demo::parser::analyser::UserInfo;
 use tf_demo_parser::demo::parser::gamestateanalyser::{
@@ -25,6 +26,7 @@ impl From<Angle> for f32 {
 
 #[derive(Debug)]
 pub struct ParsedDemo {
+    last_tick: DemoTick,
     pub tick: usize,
     pub players: Vec<Vec<u8>>,
     pub buildings: Vec<Vec<u8>>,
@@ -37,6 +39,7 @@ pub struct ParsedDemo {
 impl ParsedDemo {
     pub fn new(header: Header) -> Self {
         ParsedDemo {
+            last_tick: DemoTick::default(),
             tick: 0,
             players: Vec::new(),
             buildings: Vec::new(),
@@ -49,53 +52,58 @@ impl ParsedDemo {
 
     pub fn push_state(&mut self, game_state: &GameState) {
         if let Some(world) = game_state.world.as_ref() {
-            for (index, player) in game_state.players.iter().enumerate() {
-                let state = PlayerState {
-                    position: player.position.into(),
-                    angle: Angle::from(player.view_angle),
-                    health: if player.state == PlayerAliveState::Alive {
-                        player.health
-                    } else {
-                        0
-                    },
-                    team: player.team,
-                    class: player.class,
-                    charge: player.charge,
-                };
+            for _tick in u32::from(self.last_tick)..u32::from(game_state.tick) {
+                for (index, player) in game_state.players.iter().enumerate() {
+                    let state = PlayerState {
+                        position: player.position.into(),
+                        angle: Angle::from(player.view_angle),
+                        health: if player.state == PlayerAliveState::Alive {
+                            player.health
+                        } else {
+                            0
+                        },
+                        team: player.team,
+                        class: player.class,
+                        charge: player.charge,
+                    };
 
-                if let None = self.players.get(index) {
-                    let mut new_player =
-                        Vec::with_capacity(self.header.ticks as usize * PlayerState::PACKET_SIZE);
-                    // backfill with defaults
-                    new_player.resize(self.tick * PlayerState::PACKET_SIZE, 0);
-                    self.players.push(new_player);
-                };
+                    if let None = self.players.get(index) {
+                        let mut new_player = Vec::with_capacity(
+                            self.header.ticks as usize * PlayerState::PACKET_SIZE,
+                        );
+                        // backfill with defaults
+                        new_player.resize(self.tick * PlayerState::PACKET_SIZE, 0);
+                        self.players.push(new_player);
+                    };
 
-                match (self.player_info.get(index), player.info.as_ref()) {
-                    (None, Some(info)) => self.player_info.push(info.clone()),
-                    _ => {}
+                    match (self.player_info.get(index), player.info.as_ref()) {
+                        (None, Some(info)) => self.player_info.push(info.clone()),
+                        _ => {}
+                    }
+
+                    let parsed_player = &mut self.players[index];
+                    parsed_player.extend_from_slice(&state.pack(world));
                 }
 
-                let parsed_player = &mut self.players[index];
-                parsed_player.extend_from_slice(&state.pack(world));
+                self.max_building_count = self.max_building_count.max(game_state.buildings.len());
+                for (index, building) in game_state.buildings.values().enumerate() {
+                    let state = BuildingState::new(building);
+
+                    if let None = self.buildings.get(index) {
+                        let new_building = Vec::with_capacity(
+                            self.header.ticks as usize * BuildingState::PACKET_SIZE,
+                        );
+                        self.buildings.push(new_building);
+                    };
+
+                    let parsed_building = &mut self.buildings[index];
+                    parsed_building.resize(self.tick * BuildingState::PACKET_SIZE, 0);
+
+                    parsed_building.extend_from_slice(&state.pack(world));
+                }
+                self.tick += 1;
             }
-
-            self.max_building_count = self.max_building_count.max(game_state.buildings.len());
-            for (index, building) in game_state.buildings.values().enumerate() {
-                let state = BuildingState::new(building);
-
-                if let None = self.buildings.get(index) {
-                    let new_building =
-                        Vec::with_capacity(self.header.ticks as usize * BuildingState::PACKET_SIZE);
-                    self.buildings.push(new_building);
-                };
-
-                let parsed_building = &mut self.buildings[index];
-                parsed_building.resize(self.tick * BuildingState::PACKET_SIZE, 0);
-
-                parsed_building.extend_from_slice(&state.pack(world));
-            }
-            self.tick += 1;
+            self.last_tick = game_state.tick;
         }
     }
 

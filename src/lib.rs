@@ -84,7 +84,7 @@ impl FlatState {
             boundaries: world.into(),
             interval_per_tick: header.duration / (header.ticks as f32),
             data: flat.into_boxed_slice(),
-            kill_ticks: parsed.kills.iter().map(|kill| kill.tick as u32).collect(),
+            kill_ticks: parsed.kills.iter().map(|kill| kill.tick.into()).collect(),
             attackers: parsed
                 .kills
                 .iter()
@@ -185,14 +185,10 @@ pub fn parse_demo_inner(
 
     let mut parsed_demo = ParsedDemo::new(header);
 
-    let mut skip = false;
     while ticker.tick()? {
-        if !skip {
-            // halve framerate
-            parsed_demo.push_state(ticker.state());
-        }
-        skip = !skip;
-        let new_progress = ((ticker.state().tick as f32 / total_ticks as f32) * 100.0).floor();
+        parsed_demo.push_state(ticker.state());
+        let new_progress =
+            ((u32::from(ticker.state().tick) as f32 / total_ticks as f32) * 100.0).floor();
         if new_progress > last_progress {
             last_progress = new_progress;
             let _ = progress.call1(&JsValue::null(), &last_progress.into());
