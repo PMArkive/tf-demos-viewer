@@ -1,7 +1,7 @@
 node_modules
-/dist
-/target
-/pkg
-/wasm-pack.log
+dist
+target
+pkg
+wasm-pack.log
 result
 .direnv

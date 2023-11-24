@@ -1,7 +1,7 @@
-import {FlatState, XY} from '../pkg/index';
+import {FlatState, XY} from '@demostf/tf-demos-viewer';
 
 export async function parseDemo(bytes: Uint8Array, progressCallback : (progress: number) => void): Promise<ParsedDemo> {
-    let m = await import("../pkg/index.js");
+    let m = await import("@demostf/tf-demos-viewer");
     const state = m.parse_demo(bytes, progressCallback);
 
     let playerCount = state.player_count;

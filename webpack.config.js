@@ -1,11 +1,8 @@
 const path = require("path");
-const CopyPlugin = require("copy-webpack-plugin");
-const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 
 const dist = path.resolve(__dirname, "dist");
 
 module.exports = {
-    target: 'webworker',
     mode: "production",
     entry: {
         index: "./js/index.ts"
@@ -13,7 +10,7 @@ module.exports = {
     output: {
         path: dist,
         filename: "[name].js",
-        libraryTarget: 'commonjs'
+        libraryTarget: 'commonjs-module'
     },
     devServer: {
         contentBase: dist,
@@ -30,15 +27,4 @@ module.exports = {
             },
         ],
     },
-    plugins: [
-        new CopyPlugin({
-            patterns: [
-                path.resolve(__dirname, "static")
-            ]
-        }),
-
-        new WasmPackPlugin({
-            crateDirectory: __dirname,
-        }),
-    ]
 };

@@ -1,7 +1,7 @@
 [package]
 name = "tf-demos-viewer"
 description = "JS bindings for demo parser"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Robin Appelman <robin@icewind.nl>"]
 categories = ["wasm"]
 readme = "README.md"

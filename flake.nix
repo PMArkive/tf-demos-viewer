@@ -29,6 +29,7 @@
 
         buildInputs = with pkgs; [openssl];
         OPENSSL_NO_VENDOR = 1;
+        NODE_OPTIONS = "--openssl-legacy-provider";
       };
     });
 }
