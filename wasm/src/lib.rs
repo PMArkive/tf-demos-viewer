@@ -73,8 +73,8 @@ impl FlatState {
 
         let flat: Vec<_> = players
             .into_iter()
-            .chain(buildings.into_iter())
-            .flat_map(|data| data.into_iter())
+            .chain(buildings)
+            .flat_map(Vec::into_iter)
             .collect();
 
         FlatState {
@@ -163,7 +163,7 @@ pub fn get_player_entity_id(state: &FlatState, player_id: usize) -> u32 {
 }
 
 #[wasm_bindgen]
-pub fn get_player_user_id(state: &FlatState, player_id: usize) -> u8 {
+pub fn get_player_user_id(state: &FlatState, player_id: usize) -> u16 {
     state.player_info[player_id].user_id.into()
 }
 

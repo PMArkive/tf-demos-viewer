@@ -13,13 +13,13 @@ pub struct Angle(u8);
 impl From<f32> for Angle {
     fn from(val: f32) -> Self {
         let ratio = val.rem_euclid(360.0) / 360.0;
-        Angle((ratio * u8::max_value() as f32) as u8)
+        Angle((ratio * u8::MAX as f32) as u8)
     }
 }
 
 impl From<Angle> for f32 {
     fn from(val: Angle) -> Self {
-        let ratio = val.0 as f32 / u8::max_value() as f32;
+        let ratio = val.0 as f32 / u8::MAX as f32;
         ratio * 360.0
     }
 }
@@ -67,7 +67,7 @@ impl ParsedDemo {
                         charge: player.charge,
                     };
 
-                    if let None = self.players.get(index) {
+                    if self.players.get(index).is_none() {
                         let mut new_player = Vec::with_capacity(
                             self.header.ticks as usize * PlayerState::PACKET_SIZE,
                         );
@@ -76,9 +76,9 @@ impl ParsedDemo {
                         self.players.push(new_player);
                     };
 
-                    match (self.player_info.get(index), player.info.as_ref()) {
-                        (None, Some(info)) => self.player_info.push(info.clone()),
-                        _ => {}
+                    if let (None, Some(info)) = (self.player_info.get(index), player.info.as_ref())
+                    {
+                        self.player_info.push(info.clone());
                     }
 
                     let parsed_player = &mut self.players[index];
@@ -89,7 +89,7 @@ impl ParsedDemo {
                 for (index, building) in game_state.buildings.values().enumerate() {
                     let state = BuildingState::new(building);
 
-                    if let None = self.buildings.get(index) {
+                    if self.buildings.get(index).is_none() {
                         let new_building = Vec::with_capacity(
                             self.header.ticks as usize * BuildingState::PACKET_SIZE,
                         );
@@ -139,7 +139,7 @@ impl PlayerState {
         // of bits
         fn pack_f32(val: f32, min: f32, max: f32) -> u16 {
             let ratio = (val - min) / (max - min);
-            (ratio * u16::max_value() as f32) as u16
+            (ratio * u16::MAX as f32) as u16
         }
 
         let x = pack_f32(self.position.x, world.boundary_min.x, world.boundary_max.x).to_le_bytes();
@@ -166,7 +166,7 @@ impl PlayerState {
     #[allow(dead_code)]
     pub fn unpack(bytes: [u8; 8], world: &World) -> Self {
         fn unpack_f32(val: u16, min: f32, max: f32) -> f32 {
-            let ratio = val as f32 / (u16::max_value() as f32);
+            let ratio = val as f32 / (u16::MAX as f32);
             ratio * (max - min) + min
         }
 
@@ -240,7 +240,7 @@ fn test_player_packing() {
     assert!(f32::abs(input.position.y - unpacked.position.y) < 0.5);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(u8)]
 pub enum BuildingType {
     TeleporterEntrance = 0,
@@ -250,13 +250,8 @@ pub enum BuildingType {
     Level2Sentry = 4,
     Level3Sentry = 5,
     MiniSentry = 6,
+    #[default]
     Unknown = 7,
-}
-
-impl Default for BuildingType {
-    fn default() -> Self {
-        BuildingType::Unknown
-    }
 }
 
 impl BuildingType {
@@ -337,7 +332,7 @@ impl BuildingState {
         // of bits
         fn pack_f32(val: f32, min: f32, max: f32) -> u16 {
             let ratio = (val - min) / (max - min);
-            (ratio * u16::max_value() as f32) as u16
+            (ratio * u16::MAX as f32) as u16
         }
 
         let x = pack_f32(self.position.x, world.boundary_min.x, world.boundary_max.x).to_le_bytes();
@@ -367,7 +362,7 @@ impl BuildingState {
     #[allow(dead_code)]
     pub fn unpack(bytes: [u8; 7], world: &World) -> Self {
         fn unpack_f32(val: u16, min: f32, max: f32) -> f32 {
-            let ratio = val as f32 / (u16::max_value() as f32);
+            let ratio = val as f32 / (u16::MAX as f32);
             ratio * (max - min) + min
         }
 
