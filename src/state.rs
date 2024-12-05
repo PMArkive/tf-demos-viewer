@@ -1,3 +1,4 @@
+use tf_demo_parser::demo::data::game_state::{Projectile, ProjectileType};
 use tf_demo_parser::demo::data::DemoTick;
 use tf_demo_parser::demo::header::Header;
 use tf_demo_parser::demo::parser::analyser::UserInfo;
@@ -30,10 +31,12 @@ pub struct ParsedDemo {
     pub tick: usize,
     pub players: Vec<Vec<u8>>,
     pub buildings: Vec<Vec<u8>>,
+    pub projectiles: Vec<Vec<u8>>,
     pub kills: Vec<Kill>,
     pub header: Header,
     pub player_info: Vec<UserInfo>,
     pub max_building_count: usize,
+    pub max_projectile_count: usize,
 }
 
 impl ParsedDemo {
@@ -43,9 +46,11 @@ impl ParsedDemo {
             tick: 0,
             players: Vec::new(),
             buildings: Vec::new(),
+            projectiles: Vec::new(),
             kills: Vec::new(),
             player_info: Vec::new(),
             max_building_count: 0,
+            max_projectile_count: 0,
             header,
         }
     }
@@ -101,6 +106,24 @@ impl ParsedDemo {
 
                     parsed_building.extend_from_slice(&state.pack(world));
                 }
+
+                self.max_projectile_count =
+                    self.max_projectile_count.max(game_state.projectiles.len());
+                for (index, projectile) in game_state.projectiles.values().enumerate() {
+                    let state = ProjectileState::new(projectile);
+
+                    if self.projectiles.get(index).is_none() {
+                        let new_projectile = Vec::with_capacity(
+                            self.header.ticks as usize * ProjectileState::PACKET_SIZE,
+                        );
+                        self.projectiles.push(new_projectile);
+                    };
+
+                    let parsed_projectiles = &mut self.projectiles[index];
+                    parsed_projectiles.resize(self.tick * ProjectileState::PACKET_SIZE, 0);
+
+                    parsed_projectiles.extend_from_slice(&state.pack(world));
+                }
                 self.tick += 1;
             }
             self.last_tick = game_state.tick;
@@ -110,6 +133,9 @@ impl ParsedDemo {
     pub fn finish(&mut self) {
         for parsed_building in self.buildings.iter_mut() {
             parsed_building.resize(self.tick * BuildingState::PACKET_SIZE, 0);
+        }
+        for parsed_projectiles in self.projectiles.iter_mut() {
+            parsed_projectiles.resize(self.tick * ProjectileState::PACKET_SIZE, 0);
         }
     }
 
@@ -308,6 +334,18 @@ pub struct BuildingState {
     level: u8,
 }
 
+// for the purpose of viewing the demo in the browser we dont really need high accuracy for
+// position or angle, so we save a bunch of space by truncating those down to half the number
+// of bits
+fn pack_f32(val: f32, min: f32, max: f32) -> u16 {
+    let ratio = (val - min) / (max - min);
+    (ratio * u16::MAX as f32) as u16
+}
+fn unpack_f32(val: u16, min: f32, max: f32) -> f32 {
+    let ratio = val as f32 / (u16::MAX as f32);
+    ratio * (max - min) + min
+}
+
 impl BuildingState {
     const PACKET_SIZE: usize = 7;
 
@@ -326,15 +364,7 @@ impl BuildingState {
         }
     }
 
-    pub fn pack(&self, world: &World) -> [u8; 7] {
-        // for the purpose of viewing the demo in the browser we dont really need high accuracy for
-        // position or angle, so we save a bunch of space by truncating those down to half the number
-        // of bits
-        fn pack_f32(val: f32, min: f32, max: f32) -> u16 {
-            let ratio = (val - min) / (max - min);
-            (ratio * u16::MAX as f32) as u16
-        }
-
+    pub fn pack(&self, world: &World) -> [u8; Self::PACKET_SIZE] {
         let x = pack_f32(self.position.x, world.boundary_min.x, world.boundary_max.x).to_le_bytes();
         let y = pack_f32(self.position.y, world.boundary_min.y, world.boundary_max.y).to_le_bytes();
         // 2 bits level
@@ -360,12 +390,7 @@ impl BuildingState {
     }
 
     #[allow(dead_code)]
-    pub fn unpack(bytes: [u8; 7], world: &World) -> Self {
-        fn unpack_f32(val: u16, min: f32, max: f32) -> f32 {
-            let ratio = val as f32 / (u16::MAX as f32);
-            ratio * (max - min) + min
-        }
-
+    pub fn unpack(bytes: [u8; Self::PACKET_SIZE], world: &World) -> Self {
         let x = unpack_f32(
             u16::from_le_bytes([bytes[0], bytes[1]]),
             world.boundary_min.x,
@@ -436,6 +461,111 @@ fn test_building_packing() {
     assert_eq!(input.ty, unpacked.ty);
     assert_eq!(input.team, unpacked.team);
     assert_eq!(input.level, unpacked.level);
+
+    assert!(f32::abs(input.position.x - unpacked.position.x) < 0.5);
+    assert!(f32::abs(input.position.y - unpacked.position.y) < 0.5);
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct ProjectileState {
+    position: VectorXY,
+    team: Team,
+    ty: ProjectileType,
+    angle: Angle,
+}
+
+impl ProjectileState {
+    const PACKET_SIZE: usize = 6;
+
+    pub fn new(projectile: &Projectile) -> Self {
+        let position = projectile.position;
+        ProjectileState {
+            position: VectorXY {
+                x: position.x,
+                y: position.y,
+            },
+            angle: Angle::from(projectile.rotation.y),
+            team: projectile.team,
+            ty: projectile.ty,
+        }
+    }
+
+    pub fn pack(&self, world: &World) -> [u8; Self::PACKET_SIZE] {
+        let x = pack_f32(self.position.x, world.boundary_min.x, world.boundary_max.x).to_le_bytes();
+        let y = pack_f32(self.position.y, world.boundary_min.y, world.boundary_max.y).to_le_bytes();
+        // 1 bit team
+        // 3 bits for type
+        // 4 bits for angle, 16 angles should be enough for projectiles
+        let team = if self.team == Team::Blue { 0 } else { 1 };
+        let team_type = ((self.ty as u8) << 5) + ((team as u8) << 4);
+
+        [x[0], x[1], y[0], y[1], team_type, self.angle.0]
+    }
+
+    #[allow(dead_code)]
+    pub fn unpack(bytes: [u8; Self::PACKET_SIZE], world: &World) -> Self {
+        let x = unpack_f32(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            world.boundary_min.x,
+            world.boundary_max.x,
+        );
+        let y = unpack_f32(
+            u16::from_le_bytes([bytes[2], bytes[3]]),
+            world.boundary_min.y,
+            world.boundary_max.y,
+        );
+        let team_type = bytes[4];
+        let packed_team = (team_type >> 4) & 1;
+        let team = if packed_team == 0 {
+            Team::Blue
+        } else {
+            Team::Red
+        };
+        let ty = ProjectileType::from((team_type >> 5) & 7);
+        let angle = Angle(bytes[5]);
+
+        ProjectileState {
+            position: VectorXY { x, y },
+            angle,
+            team,
+            ty,
+        }
+    }
+}
+
+#[test]
+fn test_projectile_packing() {
+    use tf_demo_parser::demo::vector::Vector;
+
+    let world = World {
+        boundary_max: Vector {
+            x: 10000.0,
+            y: 10000.0,
+            z: 100.0,
+        },
+        boundary_min: Vector {
+            x: -10000.0,
+            y: -10000.0,
+            z: -100.0,
+        },
+    };
+
+    let input = ProjectileState {
+        position: VectorXY {
+            x: 100.0,
+            y: -5000.0,
+        },
+        angle: Angle::from(123.0),
+        team: Team::Blue,
+        ty: ProjectileType::Flare,
+    };
+
+    let bytes = input.pack(&world);
+
+    let unpacked = ProjectileState::unpack(bytes, &world);
+    assert_eq!(input.ty, unpacked.ty);
+    assert_eq!(input.team, unpacked.team);
+    assert_eq!(input.angle, unpacked.angle);
 
     assert!(f32::abs(input.position.x - unpacked.position.x) < 0.5);
     assert!(f32::abs(input.position.y - unpacked.position.y) < 0.5);

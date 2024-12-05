@@ -44,6 +44,7 @@ impl From<World> for WorldBoundaries {
 pub struct FlatState {
     pub player_count: usize,
     pub building_count: usize,
+    pub projectile_count: usize,
     pub boundaries: WorldBoundaries,
     pub interval_per_tick: f32,
     pub tick_count: u32,
@@ -63,23 +64,28 @@ impl FlatState {
             players,
             header,
             buildings,
+            projectiles,
             max_building_count,
+            max_projectile_count,
             tick,
             ..
         } = parsed;
 
         let player_count = players.len();
         let building_count = max_building_count;
+        let projectile_count = max_projectile_count;
 
         let flat: Vec<_> = players
             .into_iter()
             .chain(buildings)
+            .chain(projectiles)
             .flat_map(Vec::into_iter)
             .collect();
 
         FlatState {
             player_count,
             building_count,
+            projectile_count,
             tick_count: tick as u32,
             boundaries: world.into(),
             interval_per_tick: header.duration / (header.ticks as f32),
