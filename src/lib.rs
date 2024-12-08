@@ -1,6 +1,6 @@
 #![macro_use]
 
-use crate::state::ParsedDemo;
+use crate::state::{ParsedDemo, SearchableEvent};
 use js_sys::Function;
 use tf_demo_parser::demo::header::Header;
 use tf_demo_parser::demo::parser::analyser::UserInfo;
@@ -54,6 +54,7 @@ pub struct FlatState {
     victims: Box<[u8]>,
     weapons: Vec<String>,
     player_info: Vec<UserInfo>,
+    events: Vec<SearchableEvent>,
     data: Box<[u8]>,
     header: Header,
 }
@@ -108,6 +109,7 @@ impl FlatState {
                 .collect(),
             weapons: parsed.kills.into_iter().map(|kill| kill.weapon).collect(),
             player_info: parsed.player_info,
+            events: parsed.events,
             header,
         }
     }
@@ -178,6 +180,16 @@ pub fn get_player_steam_id(state: &FlatState, player_id: usize) -> String {
     state.player_info[player_id].steam_id.clone()
 }
 
+#[wasm_bindgen]
+pub fn get_event_count(state: &FlatState) -> usize {
+    state.events.len()
+}
+
+#[wasm_bindgen]
+pub fn get_event(state: &FlatState, id: usize) -> String {
+    serde_json::to_string(&state.events[id]).unwrap_or_default()
+}
+
 pub fn parse_demo_inner(
     buffer: &[u8],
     progress: &Function,
@@ -201,7 +213,7 @@ pub fn parse_demo_inner(
         }
     }
 
-    parsed_demo.finish();
+    parsed_demo.finish(ticker.state());
 
     let state = ticker.into_state();
 

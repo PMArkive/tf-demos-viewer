@@ -1,10 +1,12 @@
+use serde::{Deserialize, Serialize};
 use tf_demo_parser::demo::data::game_state::{Projectile, ProjectileType};
 use tf_demo_parser::demo::data::DemoTick;
+use tf_demo_parser::demo::gamevent::GameEvent;
 use tf_demo_parser::demo::header::Header;
 use tf_demo_parser::demo::parser::analyser::UserInfo;
 use tf_demo_parser::demo::parser::gamestateanalyser::{
     Building, Class, Dispenser, GameState, Kill, PlayerState as PlayerAliveState, Sentry, Team,
-    Teleporter, World,
+    Teleporter, UserId, World,
 };
 use tf_demo_parser::demo::vector::VectorXY;
 
@@ -33,6 +35,7 @@ pub struct ParsedDemo {
     pub buildings: Vec<Vec<u8>>,
     pub projectiles: Vec<Vec<u8>>,
     pub kills: Vec<Kill>,
+    pub events: Vec<SearchableEvent>,
     pub header: Header,
     pub player_info: Vec<UserInfo>,
     pub max_building_count: usize,
@@ -51,6 +54,7 @@ impl ParsedDemo {
             player_info: Vec::new(),
             max_building_count: 0,
             max_projectile_count: 0,
+            events: Vec::new(),
             header,
         }
     }
@@ -130,13 +134,19 @@ impl ParsedDemo {
         }
     }
 
-    pub fn finish(&mut self) {
+    pub fn finish(&mut self, state: &GameState) {
         for parsed_building in self.buildings.iter_mut() {
             parsed_building.resize(self.tick * BuildingState::PACKET_SIZE, 0);
         }
         for parsed_projectiles in self.projectiles.iter_mut() {
             parsed_projectiles.resize(self.tick * ProjectileState::PACKET_SIZE, 0);
         }
+
+        self.events = state
+            .events
+            .iter()
+            .flat_map(|(tick, event)| SearchableEvent::from_event(*tick, event))
+            .collect();
     }
 
     pub fn size(&self) -> usize {
@@ -569,4 +579,68 @@ fn test_projectile_packing() {
 
     assert!(f32::abs(input.position.x - unpacked.position.x) < 0.5);
     assert!(f32::abs(input.position.y - unpacked.position.y) < 0.5);
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum RawBuildingType {
+    Dispenser,
+    Teleporter,
+    SentryGun,
+}
+
+impl TryFrom<u16> for RawBuildingType {
+    type Error = ();
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(RawBuildingType::Dispenser),
+            1 => Ok(RawBuildingType::Teleporter),
+            2 => Ok(RawBuildingType::SentryGun),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum SearchableEvent {
+    Uber {
+        user_id: UserId,
+        target_id: UserId,
+        tick: DemoTick,
+    },
+    BuildingDestroyed {
+        attacker_id: UserId,
+        assister_id: UserId,
+        victim_id: UserId,
+        weapon: String,
+        building_type: RawBuildingType,
+        tick: DemoTick,
+    },
+}
+
+impl SearchableEvent {
+    pub fn from_event(tick: DemoTick, event: &GameEvent) -> Option<SearchableEvent> {
+        match event {
+            GameEvent::ObjectDestroyed(event) => {
+                let building_type = RawBuildingType::try_from(event.object_type).ok()?;
+                Some(SearchableEvent::BuildingDestroyed {
+                    attacker_id: UserId::from(event.attacker),
+                    assister_id: UserId::from(event.assister),
+                    victim_id: UserId::from(event.user_id),
+                    weapon: event.weapon.to_string(),
+                    building_type,
+                    tick,
+                })
+            }
+            GameEvent::PlayerChargeDeployed(event) => Some(SearchableEvent::Uber {
+                user_id: UserId::from(event.user_id),
+                target_id: UserId::from(event.target_id),
+                tick,
+            }),
+            _ => None,
+        }
+    }
 }

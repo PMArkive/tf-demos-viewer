@@ -561,9 +561,11 @@ dependencies = [
 
 [[package]]
 name = "tf-demos-viewer"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "js-sys",
+ "serde",
+ "serde_json",
  "tf-demo-parser",
  "wasm-bindgen",
  "web-sys",
